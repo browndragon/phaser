@@ -23,15 +23,18 @@ var CONST = require('./const');
 var GetOverlapX = function (body1, body2, overlapOnly, bias)
 {
     var overlap = 0;
-    var maxOverlap = body1.deltaAbsX() + body2.deltaAbsX() + bias;
+    var b1dx = body1.position.x - body1.prev.x;
+    var b2dx = body2.position.x - body2.prev.x;
+    var maxOverlap = Math.abs(b1dx) + Math.abs(b2dx) + bias;
 
-    if (body1._dx === 0 && body2._dx === 0)
-    {
-        //  They overlap but neither of them are moving
+    if (b1dx == b2dx) {
+        // They overlap but neither of them are moving, perhaps because we've just cached the previous position.
+        // For instance, first tick of a frame, we teleport position in-place, also updating prev...
+        // Because we happen to run walls first, this is maximally annoying; there are no priorities, and any "velocity" was imparted during the last tick. We could keep a velocity echo here ("lastDx" or smth), but that seems very messy. Really, the problem is we refuse to handle embedded tiles rather than having any sort of exclusion principle.
         body1.embedded = true;
         body2.embedded = true;
     }
-    else if (body1._dx > body2._dx)
+    else if (b1dx > b2dx)
     {
         //  Body1 is moving right and / or Body2 is moving left
         overlap = body1.right - body2.x;
@@ -61,7 +64,7 @@ var GetOverlapX = function (body1, body2, overlapOnly, bias)
             }
         }
     }
-    else if (body1._dx < body2._dx)
+    else if (b1dx < b2dx)
     {
         //  Body1 is moving left and/or Body2 is moving right
         overlap = body1.x - body2.width - body2.x;

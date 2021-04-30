@@ -163,6 +163,16 @@ var Body = new Class({
         this.prev = this.position.clone();
 
         /**
+         * The position of this Body just after calculating velocity in the previous step.
+         * This is sneaky! It's (eventually) prev; but if other components such as syncing from your game object or other interactions with physics modify position, this allows position-prev to calculate a true distance covered instead of overwriting those changes.
+         *
+         * @name Phaser.Physics.Arcade.Body#_snapshot
+         * @type {Phaser.Math.Vector2}
+         * @since 3.54.0
+         */
+        this._snapshot = this.position.clone();
+
+        /**
          * The position of this Body during the previous frame.
          *
          * @name Phaser.Physics.Arcade.Body#prevFrame
@@ -788,28 +798,6 @@ var Body = new Class({
         this._sy = gameObject.scaleY;
 
         /**
-         * The calculated change in the Body's horizontal position during the last step.
-         *
-         * @name Phaser.Physics.Arcade.Body#_dx
-         * @type {number}
-         * @private
-         * @default 0
-         * @since 3.0.0
-         */
-        this._dx = 0;
-
-        /**
-         * The calculated change in the Body's vertical position during the last step.
-         *
-         * @name Phaser.Physics.Arcade.Body#_dy
-         * @type {number}
-         * @private
-         * @default 0
-         * @since 3.0.0
-         */
-        this._dy = 0;
-
-        /**
          * The final calculated change in the Body's horizontal position as of `postUpdate`.
          *
          * @name Phaser.Physics.Arcade.Body#_tx
@@ -1023,23 +1011,17 @@ var Body = new Class({
         {
             this.resetFlags();
         }
-
         this.updateFromGameObject();
 
         this.rotation = this.transform.rotation;
         this.preRotation = this.rotation;
 
-        if (this.moves)
-        {
-            this.prev.x = this.position.x;
-            this.prev.y = this.position.y;
-            this.prevFrame.x = this.position.x;
-            this.prevFrame.y = this.position.y;
-        }
+        this.prevFrame.x = this.x;
+        this.prevFrame.y = this.y;
 
         if (willStep)
         {
-            this.update(delta);
+            this.update(delta, true);
         }
     },
 
@@ -1055,11 +1037,13 @@ var Body = new Class({
      * @since 3.0.0
      *
      * @param {number} delta - The delta time, in seconds, elapsed since the last frame.
+     * @param {bool} fromPreUpdate - True if this step was called from preUpdate, which might include a teleportation of the body position to match a game object; if so, that should be counted as part of the body's velocity!
      */
     update: function (delta)
     {
-        this.prev.x = this.position.x;
-        this.prev.y = this.position.y;
+        this._lastDelta = delta;
+        this.prev.x = this._snapshot.x;
+        this.prev.y = this._snapshot.y;
 
         if (this.moves)
         {
@@ -1071,7 +1055,8 @@ var Body = new Class({
             this.newVelocity.set(vx * delta, vy * delta);
 
             this.position.add(this.newVelocity);
-
+            this._snapshot.x = this.x;
+            this._snapshot.y = this.y;
             this.updateCenter();
 
             this.angle = Math.atan2(vy, vx);
@@ -1085,9 +1070,6 @@ var Body = new Class({
                 this.world.emit(Events.WORLD_BOUNDS, this, this.blocked.up, this.blocked.down, this.blocked.left, this.blocked.right);
             }
         }
-
-        this._dx = this.position.x - this.prev.x;
-        this._dy = this.position.y - this.prev.y;
     },
 
     /**
@@ -1386,6 +1368,7 @@ var Body = new Class({
         }
 
         this.prev.copy(this.position);
+        this._snapshot.copy(this.position);
         this.prevFrame.copy(this.position);
 
         this.rotation = gameObject.angle;
@@ -1517,7 +1500,7 @@ var Body = new Class({
      */
     deltaAbsX: function ()
     {
-        return (this._dx > 0) ? this._dx : -this._dx;
+        return Math.abs(this.deltaX());
     },
 
     /**
@@ -1530,7 +1513,7 @@ var Body = new Class({
      */
     deltaAbsY: function ()
     {
-        return (this._dy > 0) ? this._dy : -this._dy;
+        return Math.abs(this.deltaY());
     },
 
     /**
@@ -1547,7 +1530,7 @@ var Body = new Class({
      */
     deltaX: function ()
     {
-        return this._dx;
+        return this.position.x - this.prev.x;
     },
 
     /**
@@ -1564,7 +1547,7 @@ var Body = new Class({
      */
     deltaY: function ()
     {
-        return this._dy;
+        return this.position.y - this.prev.y;
     },
 
     /**

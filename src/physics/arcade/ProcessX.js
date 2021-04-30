@@ -6,6 +6,9 @@
 
 var body1;
 var body2;
+var v1;
+var v2;
+
 var body1Pushable;
 var body2Pushable;
 var body1MassImpact;
@@ -45,20 +48,20 @@ var Set = function (b1, b2, ov)
     body1 = b1;
     body2 = b2;
 
-    var v1 = body1.velocity.x;
-    var v2 = body2.velocity.x;
+    v1 = (body1.position.x - body1.prev.x) / body1._lastDelta;
+    v2 = (body2.position.x - body2.prev.x) / body2._lastDelta;
 
     body1Pushable = body1.pushable;
-    body1MovingLeft = body1._dx < 0;
-    body1MovingRight = body1._dx > 0;
-    body1Stationary = body1._dx === 0;
+    body1MovingLeft = v1 < 0;
+    body1MovingRight = v1 > 0;
+    body1Stationary = v1 === 0;
     body1OnLeft = Math.abs(body1.right - body2.x) <= Math.abs(body2.right - body1.x);
     body1FullImpact = v2 - v1 * body1.bounce.x;
 
     body2Pushable = body2.pushable;
-    body2MovingLeft = body2._dx < 0;
-    body2MovingRight = body2._dx > 0;
-    body2Stationary = body2._dx === 0;
+    body2MovingLeft = v2 < 0;
+    body2MovingRight = v2 > 0;
+    body2Stationary = v2 === 0;
     body2OnLeft = !body1OnLeft;
     body2FullImpact = v1 - v2 * body2.bounce.x;
 
@@ -126,9 +129,6 @@ var BlockCheck = function ()
  */
 var Check = function ()
 {
-    var v1 = body1.velocity.x;
-    var v2 = body2.velocity.x;
-
     var nv1 = Math.sqrt((v2 * v2 * body2.mass) / body1.mass) * ((v2 > 0) ? 1 : -1);
     var nv2 = Math.sqrt((v1 * v1 * body1.mass) / body2.mass) * ((v1 > 0) ? 1 : -1);
     var avg = (nv1 + nv2) * 0.5;
@@ -256,7 +256,7 @@ var Run = function (side)
             else
             {
                 //  Body2 moving same direction as Body1
-                body1.processX(halfOverlap, body2.velocity.x, true);
+                body1.processX(halfOverlap, v2, true);
                 body2.processX(-halfOverlap, null, false, true);
             }
         }
@@ -278,7 +278,7 @@ var Run = function (side)
             {
                 //  Body1 moving same direction as Body2
                 body1.processX(-halfOverlap, null, false, true);
-                body2.processX(halfOverlap, body1.velocity.x, true);
+                body2.processX(halfOverlap, v1, true);
             }
         }
         else if (side === 2)
@@ -298,7 +298,7 @@ var Run = function (side)
             else
             {
                 //  Body2 moving same direction as Body1
-                body1.processX(-halfOverlap, body2.velocity.x, false, true);
+                body1.processX(-halfOverlap, v2, false, true);
                 body2.processX(halfOverlap, null, true);
             }
         }
@@ -319,7 +319,7 @@ var Run = function (side)
             else
             {
                 //  Body1 moving same direction as Body2
-                body1.processX(halfOverlap, body2.velocity.y, true);
+                body1.processX(halfOverlap, v2, true);
                 body2.processX(-halfOverlap, null, false, true);
             }
         }
@@ -358,7 +358,7 @@ var RunImmovableBody1 = function (blockedState)
     if (body1.moves)
     {
         body2.y += (body1.y - body1.prev.y) * body1.friction.y;
-        body2._dy = body2.y - body2.prev.y;
+        body2.updateCenter();
     }
 };
 
@@ -392,7 +392,7 @@ var RunImmovableBody2 = function (blockedState)
     if (body2.moves)
     {
         body1.y += (body2.y - body2.prev.y) * body2.friction.y;
-        body1._dy = body1.y - body1.prev.y;
+        body1.updateCenter();
     }
 };
 

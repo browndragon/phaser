@@ -6,6 +6,8 @@
 
 var body1;
 var body2;
+var v1;
+var v2;
 var body1Pushable;
 var body2Pushable;
 var body1MassImpact;
@@ -45,20 +47,20 @@ var Set = function (b1, b2, ov)
     body1 = b1;
     body2 = b2;
 
-    var v1 = body1.velocity.y;
-    var v2 = body2.velocity.y;
+    v1 = (body1.position.y - body1.prev.y) / body1._lastDelta;
+    v2 = (body2.position.y - body2.prev.y) / body2._lastDelta;
 
     body1Pushable = body1.pushable;
-    body1MovingUp = body1._dy < 0;
-    body1MovingDown = body1._dy > 0;
-    body1Stationary = body1._dy === 0;
+    body1MovingUp = v1 < 0;
+    body1MovingDown = v1 > 0;
+    body1Stationary = v1 === 0;
     body1OnTop = Math.abs(body1.bottom - body2.y) <= Math.abs(body2.bottom - body1.y);
     body1FullImpact = v2 - v1 * body1.bounce.y;
 
     body2Pushable = body2.pushable;
-    body2MovingUp = body2._dy < 0;
-    body2MovingDown = body2._dy > 0;
-    body2Stationary = body2._dy === 0;
+    body2MovingUp = v2 < 0;
+    body2MovingDown = v2 > 0;
+    body2Stationary = v2 === 0;
     body2OnTop = !body1OnTop;
     body2FullImpact = v1 - v2 * body2.bounce.y;
 
@@ -358,7 +360,6 @@ var RunImmovableBody1 = function (blockedState)
     if (body1.moves)
     {
         body2.x += (body1.x - body1.prev.x) * body1.friction.x;
-        body2._dx = body2.x - body2.prev.x;
     }
 };
 
@@ -392,7 +393,6 @@ var RunImmovableBody2 = function (blockedState)
     if (body2.moves)
     {
         body1.x += (body2.x - body2.prev.x) * body2.friction.x;
-        body1._dx = body1.x - body1.prev.x;
     }
 };
 
