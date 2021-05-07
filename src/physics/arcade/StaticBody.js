@@ -311,24 +311,14 @@ var StaticBody = new Class({
         this.customSeparateY = false;
 
         /**
-         * The amount of horizontal overlap (before separation), if this Body is colliding with another.
+         * The amount of overlap (before separation), if this Body is colliding with another.
          *
-         * @name Phaser.Physics.Arcade.StaticBody#overlapX
+         * @name Phaser.Physics.Arcade.StaticBody#overlapV
          * @type {number}
          * @default 0
-         * @since 3.0.0
+         * @since 3.54.0
          */
-        this.overlapX = 0;
-
-        /**
-         * The amount of vertical overlap (before separation), if this Body is colliding with another.
-         *
-         * @name Phaser.Physics.Arcade.StaticBody#overlapY
-         * @type {number}
-         * @default 0
-         * @since 3.0.0
-         */
-        this.overlapY = 0;
+        this.overlapV = new Vector2();
 
         /**
          * The amount of overlap (before separation), if this StaticBody is circular and colliding with another circular body.
@@ -411,30 +401,6 @@ var StaticBody = new Class({
          * @since 3.0.0
          */
         this.physicsType = CONST.STATIC_BODY;
-
-        /**
-         * The calculated change in the Static Body's horizontal position during the current step.
-         * For a static body this is always zero.
-         *
-         * @name Phaser.Physics.Arcade.StaticBody#_dx
-         * @type {number}
-         * @private
-         * @default 0
-         * @since 3.10.0
-         */
-        this._dx = 0;
-
-        /**
-         * The calculated change in the Static Body's vertical position during the current step.
-         * For a static body this is always zero.
-         *
-         * @name Phaser.Physics.Arcade.StaticBody#_dy
-         * @type {number}
-         * @private
-         * @default 0
-         * @since 3.10.0
-         */
-        this._dy = 0;
     },
 
     /**
@@ -739,32 +705,6 @@ var StaticBody = new Class({
     },
 
     /**
-     * The absolute (non-negative) change in this StaticBody's horizontal position from the previous step. Always zero.
-     *
-     * @method Phaser.Physics.Arcade.StaticBody#deltaAbsX
-     * @since 3.0.0
-     *
-     * @return {number} Always zero for a Static Body.
-     */
-    deltaAbsX: function ()
-    {
-        return 0;
-    },
-
-    /**
-     * The absolute (non-negative) change in this StaticBody's vertical position from the previous step. Always zero.
-     *
-     * @method Phaser.Physics.Arcade.StaticBody#deltaAbsY
-     * @since 3.0.0
-     *
-     * @return {number} Always zero for a Static Body.
-     */
-    deltaAbsY: function ()
-    {
-        return 0;
-    },
-
-    /**
      * The change in this StaticBody's horizontal position from the previous step. Always zero.
      *
      * @method Phaser.Physics.Arcade.StaticBody#deltaX
@@ -983,6 +923,12 @@ var StaticBody = new Class({
         }
 
     },
+    up: {
+        get: function ()
+        {
+            return this.position.y;
+        }
+    },
 
     /**
      * The lowest y coordinate of the area of the StaticBody. (y + height)
@@ -999,8 +945,65 @@ var StaticBody = new Class({
             return this.position.y + this.height;
         }
 
-    }
+    },
+    down: {
+        get: function ()
+        {
+            return this.position.y + this.height;
+        }
+    },
 
+    /**
+     * The position this body held during the last tick. Since it's static, by convention this is the body's current position.
+     *
+     * @name Phaser.Physics.Arcade.StaticBody#prev
+     * @type {Phaser.Math.Vector2}
+     * @readonly
+     * @since 3.54.0
+     */
+    prev: {
+        get: function ()
+        {
+            return this.position;
+        }
+    },
+
+    /**
+     * The amount of horizontal overlap (before separation), if this Body is colliding with another.
+     *
+     * @name Phaser.Physics.Arcade.StaticBody#overlapY
+     * @type {number}
+     * @default 0
+     * @since 3.0.0
+     */
+    overlapX: {
+        get: function()
+        {
+            return this.overlapV.x;
+        },
+        set: function(v)
+        {
+            return this.overlapV.x = v;
+        }
+    },
+    /**
+     * The amount of vertical overlap (before separation), if this Body is colliding with another.
+     *
+     * @name Phaser.Physics.Arcade.StaticBody#overlapY
+     * @type {number}
+     * @default 0
+     * @since 3.0.0
+     */
+    overlapY: {
+        get: function()
+        {
+            return this.overlapV.y;
+        },
+        set: function(v)
+        {
+            return this.overlapV.y = v;
+        },
+    },
 });
 
 module.exports = StaticBody;

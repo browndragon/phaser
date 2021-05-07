@@ -52,18 +52,23 @@ var SeparateTile = function (i, body, tile, tileWorldRect, tilemapLayer, tileBia
     var minX = 0;
     var minY = 1;
 
-    if (body.deltaAbsX() > body.deltaAbsY())
+    var dx = body.deltaX();
+    var dy = body.deltaY();
+    var adx = Math.abs(dx);
+    var ady = Math.abs(dy);
+
+    if (adx > ady)
     {
         //  Moving faster horizontally, check X axis first
         minX = -1;
     }
-    else if (body.deltaAbsX() < body.deltaAbsY())
+    else if (adx < ady)
     {
         //  Moving faster vertically, check Y axis first
         minY = -1;
     }
 
-    if (body.deltaX() !== 0 && body.deltaY() !== 0 && faceHorizontal && faceVertical)
+    if (dx !== 0 && dy !== 0 && faceHorizontal && faceVertical)
     {
         //  We only need do this if both axes have colliding faces AND we're moving in both
         //  directions

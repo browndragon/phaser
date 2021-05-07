@@ -11,20 +11,27 @@ var Extend = require('../../utils/object/Extend');
  * @namespace Phaser.Physics.Arcade
  */
 
-var Arcade = {
+var Axis = require('./Axis');
 
+var GetOverlap = require('./GetOverlap');
+var Separate = require('./Separate');
+
+var Arcade = {
     ArcadePhysics: require('./ArcadePhysics'),
+    Axis: Axis,
     Body: require('./Body'),
     Collider: require('./Collider'),
     Components: require('./components'),
     Events: require('./events'),
     Factory: require('./Factory'),
-    GetOverlapX: require('./GetOverlapX'),
-    GetOverlapY: require('./GetOverlapY'),
-    SeparateX: require('./SeparateX'),
-    SeparateY: require('./SeparateY'),
+    GetOverlap: GetOverlap,
+    GetOverlapX: GetOverlap.bind(undefined, Axis.X),
+    GetOverlapY: GetOverlap.bind(undefined, Axis.Y),
     Group: require('./PhysicsGroup'),
     Image: require('./ArcadeImage'),
+    Separate: Separate,
+    SeparateX: Separate.bind(undefined, Axis.X),
+    SeparateY: Separate.bind(undefined, Axis.Y),
     Sprite: require('./ArcadeSprite'),
     StaticBody: require('./StaticBody'),
     StaticGroup: require('./StaticPhysicsGroup'),

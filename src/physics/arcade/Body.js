@@ -293,18 +293,6 @@ var Body = new Class({
         this.velocity = new Vector2();
 
         /**
-         * The Body's change in position (due to velocity) at the last step, in pixels.
-         *
-         * The size of this value depends on the simulation's step rate.
-         *
-         * @name Phaser.Physics.Arcade.Body#newVelocity
-         * @type {Phaser.Math.Vector2}
-         * @readonly
-         * @since 3.0.0
-         */
-        this.newVelocity = new Vector2();
-
-        /**
          * The Body's absolute maximum change in position, in pixels per step.
          *
          * @name Phaser.Physics.Arcade.Body#deltaMax
@@ -321,6 +309,22 @@ var Body = new Class({
          * @since 3.0.0
          */
         this.acceleration = new Vector2();
+
+        /**
+         * Reset to 0 on every tick, `next` values modify the body's values as indicated:
+         * @name Phaser.Physics.Arcade.Body#next
+         * @type {object}
+         * @type {Phaser.Math.Vector2} .position: After body velocity calculation, body.position += body.next.position (so it's more properly `offset`). For example, updates from the game object are applied here. This ensures that snapshots of dx/dy are consistent.
+         * Note: this is *not* used for separation restitution, which directly modifies body position. The alternative ("modify body.next.position for restitution") would result in interpenetrating frames being visible.
+         * @type {Phaser.Math.Vector2} .velocity: When body.velocity is applied to body.position, body.next.velocity is also added and then cleared. This instantaneous impulse can be used in body collision restitution for soft bodies, surface slipperiness/friction, treadmill, etc. Note that it is also suitable for setting cursor based movement, *as long as it is set on every physics cycle*!
+         * @type {Phaser.Math.Vector2} .acceleration: when body.acceleration is applied to body.velocity, body.next.acceleration is also added and then cleared. This instantaneous force is suitable for body collision restitution for soft bodies, creating drag and bounce.
+         * @since 3.54.0
+         */
+        this.next = {
+            position: new Vector2(0, 0),
+            velocity: new Vector2(0, 0),
+            acceleration: new Vector2(0, 0),
+        };
 
         /**
          * Whether this Body's velocity is affected by its `drag`.
@@ -649,24 +653,14 @@ var Body = new Class({
         this.customSeparateY = false;
 
         /**
-         * The amount of horizontal overlap (before separation), if this Body is colliding with another.
+         * The amount of overlap (before separation) in each axis, if this body is colliding with another.
          *
-         * @name Phaser.Physics.Arcade.Body#overlapX
-         * @type {number}
-         * @default 0
-         * @since 3.0.0
+         * @name Phaser.Physics.Arcade.Body#overlapV
+         * @type {Phaser.Math.Vector2}
+         * @default [0, 0]
+         * @since 3.54.0
          */
-        this.overlapX = 0;
-
-        /**
-         * The amount of vertical overlap (before separation), if this Body is colliding with another.
-         *
-         * @name Phaser.Physics.Arcade.Body#overlapY
-         * @type {number}
-         * @default 0
-         * @since 3.0.0
-         */
-        this.overlapY = 0;
+        this.overlapV = new Phaser.Math.Vector2();
 
         /**
          * The amount of overlap (before separation), if this Body is circular and colliding with another circular body.
@@ -786,28 +780,6 @@ var Body = new Class({
          * @since 3.0.0
          */
         this._sy = gameObject.scaleY;
-
-        /**
-         * The calculated change in the Body's horizontal position during the last step.
-         *
-         * @name Phaser.Physics.Arcade.Body#_dx
-         * @type {number}
-         * @private
-         * @default 0
-         * @since 3.0.0
-         */
-        this._dx = 0;
-
-        /**
-         * The calculated change in the Body's vertical position during the last step.
-         *
-         * @name Phaser.Physics.Arcade.Body#_dy
-         * @type {number}
-         * @private
-         * @default 0
-         * @since 3.0.0
-         */
-        this._dy = 0;
 
         /**
          * The final calculated change in the Body's horizontal position as of `postUpdate`.
@@ -942,8 +914,8 @@ var Body = new Class({
 
         var transform = this.transform;
 
-        this.position.x = transform.x + transform.scaleX * (this.offset.x - transform.displayOriginX);
-        this.position.y = transform.y + transform.scaleY * (this.offset.y - transform.displayOriginY);
+        this.next.position.x += transform.x + transform.scaleX * (this.offset.x - transform.displayOriginX) - this.x;
+        this.next.position.y += transform.y + transform.scaleY * (this.offset.y - transform.displayOriginY) - this.y;
 
         this.updateCenter();
     },
@@ -1031,8 +1003,8 @@ var Body = new Class({
 
         if (this.moves)
         {
-            this.prev.x = this.position.x;
-            this.prev.y = this.position.y;
+//             this.prev.x = this.position.x;
+//             this.prev.y = this.position.y;
             this.prevFrame.x = this.position.x;
             this.prevFrame.y = this.position.y;
         }
@@ -1064,19 +1036,6 @@ var Body = new Class({
         if (this.moves)
         {
             this.world.updateMotion(this, delta);
-
-            var vx = this.velocity.x;
-            var vy = this.velocity.y;
-
-            this.newVelocity.set(vx * delta, vy * delta);
-
-            this.position.add(this.newVelocity);
-
-            this.updateCenter();
-
-            this.angle = Math.atan2(vy, vx);
-            this.speed = Math.sqrt(vx * vx + vy * vy);
-
             //  Now the update will throw collision checks at the Body
             //  And finally we'll integrate the new position back to the Sprite in postUpdate
 
@@ -1085,9 +1044,6 @@ var Body = new Class({
                 this.world.emit(Events.WORLD_BOUNDS, this, this.blocked.up, this.blocked.down, this.blocked.left, this.blocked.right);
             }
         }
-
-        this._dx = this.position.x - this.prev.x;
-        this._dy = this.position.y - this.prev.y;
     },
 
     /**
@@ -1508,32 +1464,6 @@ var Body = new Class({
     },
 
     /**
-     * The absolute (non-negative) change in this Body's horizontal position from the previous step.
-     *
-     * @method Phaser.Physics.Arcade.Body#deltaAbsX
-     * @since 3.0.0
-     *
-     * @return {number} The delta value.
-     */
-    deltaAbsX: function ()
-    {
-        return (this._dx > 0) ? this._dx : -this._dx;
-    },
-
-    /**
-     * The absolute (non-negative) change in this Body's vertical position from the previous step.
-     *
-     * @method Phaser.Physics.Arcade.Body#deltaAbsY
-     * @since 3.0.0
-     *
-     * @return {number} The delta value.
-     */
-    deltaAbsY: function ()
-    {
-        return (this._dy > 0) ? this._dy : -this._dy;
-    },
-
-    /**
      * The change in this Body's horizontal position from the previous step.
      * This value is set during the Body's update phase.
      *
@@ -1547,7 +1477,7 @@ var Body = new Class({
      */
     deltaX: function ()
     {
-        return this._dx;
+        return this.x - this.prev.x;
     },
 
     /**
@@ -1564,7 +1494,7 @@ var Body = new Class({
      */
     deltaY: function ()
     {
-        return this._dy;
+        return this.y - this.prev.y;
     },
 
     /**
@@ -1689,7 +1619,15 @@ var Body = new Class({
         if (this.debugShowVelocity)
         {
             graphic.lineStyle(graphic.defaultStrokeWidth, this.world.defaults.velocityDebugColor, 1);
-            graphic.lineBetween(x, y, x + this.velocity.x / 2, y + this.velocity.y / 2);
+            var px = x + this.next.position.x;
+            var py = y + this.next.position.y;
+            var vx = px + this.velocity.x / 2;
+            var vy =  py + this.velocity.y / 2;
+            graphic.lineBetween(px, py, vx, vy);
+            graphic.lineStyle(graphic.defaultStrokeWidth, this.world.defaults.velocityDebugColor, .75);
+            var nvx = vx + this.next.velocity.x / 2;
+            var nvy =  vy + this.next.velocity.y / 2;
+            graphic.lineBetween(vx, vy, nvx, nvy);
         }
     },
 
@@ -2344,78 +2282,6 @@ var Body = new Class({
     },
 
     /**
-     * This is an internal handler, called by the `ProcessX` function as part
-     * of the collision step. You should almost never call this directly.
-     *
-     * @method Phaser.Physics.Arcade.Body#processX
-     * @since 3.50.0
-     *
-     * @param {number} x - The amount to add to the Body position.
-     * @param {number} [vx] - The amount to add to the Body velocity.
-     * @param {boolean} [left] - Set the blocked.left value?
-     * @param {boolean} [right] - Set the blocked.right value?
-     */
-    processX: function (x, vx, left, right)
-    {
-        this.x += x;
-
-        this.updateCenter();
-
-        if (vx !== null)
-        {
-            this.velocity.x = vx;
-        }
-
-        var blocked = this.blocked;
-
-        if (left)
-        {
-            blocked.left = true;
-        }
-
-        if (right)
-        {
-            blocked.right = true;
-        }
-    },
-
-    /**
-     * This is an internal handler, called by the `ProcessY` function as part
-     * of the collision step. You should almost never call this directly.
-     *
-     * @method Phaser.Physics.Arcade.Body#processY
-     * @since 3.50.0
-     *
-     * @param {number} y - The amount to add to the Body position.
-     * @param {number} [vy] - The amount to add to the Body velocity.
-     * @param {boolean} [up] - Set the blocked.up value?
-     * @param {boolean} [down] - Set the blocked.down value?
-     */
-    processY: function (y, vy, up, down)
-    {
-        this.y += y;
-
-        this.updateCenter();
-
-        if (vy !== null)
-        {
-            this.velocity.y = vy;
-        }
-
-        var blocked = this.blocked;
-
-        if (up)
-        {
-            blocked.up = true;
-        }
-
-        if (down)
-        {
-            blocked.down = true;
-        }
-    },
-
-    /**
      * The Bodys horizontal position (left edge).
      *
      * @name Phaser.Physics.Arcade.Body#x
@@ -2507,6 +2373,20 @@ var Body = new Class({
         }
 
     },
+    /**
+     * The top edge of the Body. Identical to y.
+     *
+     * @name Phaser.Physics.Arcade.Body#up
+     * @type {number}
+     * @readonly
+     * @since 3.54.0
+     */
+    up: {
+        get: function()
+        {
+            return this.position.y;
+        }
+    },
 
     /**
      * The bottom edge of this Body.
@@ -2523,8 +2403,58 @@ var Body = new Class({
             return this.position.y + this.height;
         }
 
-    }
+    },
+    /**
+     * The bottom edge of the Body. Identical to bottom.
+     *
+     * @name Phaser.Physics.Arcade.Body#down
+     * @type {number}
+     * @readonly
+     * @since 3.54.0
+     */
+    down: {
+        get: function()
+        {
+            return this.bottom;
+        }
+    },
+    /**
+     * The amount of horizontal overlap (before separation), if this Body is colliding with another.
+     *
+     * @name Phaser.Physics.Arcade.Body#overlapX
+     * @type {number}
+     * @default 0
+     * @since 3.0.0
+     */
+    overlapX: {
+        get: function()
+        {
+            return this.overlapV.x;
+        },
+        set: function(v)
+        {
+            return this.overlapV.x = v;
+        }
+    },
+    /**
+     * The amount of vertical overlap (before separation), if this Body is colliding with another.
+     *
+     * @name Phaser.Physics.Arcade.Body#overlapY
+     * @type {number}
+     * @default 0
+     * @since 3.0.0
+     */
+    overlapY: {
+        get: function()
+        {
+            return this.overlapV.y;
+        },
+        set: function(v)
+        {
+            return this.overlapV.y = v;
+        }
 
+    }
 });
 
 module.exports = Body;

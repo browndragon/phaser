@@ -5,6 +5,7 @@
  */
 
 var AngleBetweenPoints = require('../../math/angle/BetweenPoints');
+var Axis = require('./Axis');
 var Body = require('./Body');
 var Clamp = require('../../math/Clamp');
 var Class = require('../../utils/Class');
@@ -16,8 +17,7 @@ var Events = require('./events');
 var FuzzyEqual = require('../../math/fuzzy/Equal');
 var FuzzyGreaterThan = require('../../math/fuzzy/GreaterThan');
 var FuzzyLessThan = require('../../math/fuzzy/LessThan');
-var GetOverlapX = require('./GetOverlapX');
-var GetOverlapY = require('./GetOverlapY');
+var GetOverlap = require('./GetOverlap');
 var GetTilesWithinWorldXY = require('../../tilemaps/components/GetTilesWithinWorldXY');
 var GetValue = require('../../utils/object/GetValue');
 var MATH_CONST = require('../../math/const');
@@ -26,8 +26,7 @@ var ProcessTileCallbacks = require('./tilemap/ProcessTileCallbacks');
 var Rectangle = require('../../geom/rectangle/Rectangle');
 var RTree = require('../../structs/RTree');
 var SeparateTile = require('./tilemap/SeparateTile');
-var SeparateX = require('./SeparateX');
-var SeparateY = require('./SeparateY');
+var Separate = require('./Separate');
 var Set = require('../../structs/Set');
 var StaticBody = require('./StaticBody');
 var TileIntersectsBody = require('./tilemap/TileIntersectsBody');
@@ -398,6 +397,16 @@ var World = new Class({
          * @since 3.12.0
          */
         this._tempMatrix2 = new TransformMatrix();
+
+        /**
+         * A temporary vector used by bodies for calculations without them needing their own local copy.
+         *
+         * @name Phaser.Physics.Arcade.World#_scratchVector
+         * @type {Phaser.Math.Vector2}
+         * @private
+         * @since 3.54.0
+         */
+        this._scratchVector = new Vector2();
 
         if (this.drawDebug)
         {
@@ -1159,6 +1168,24 @@ var World = new Class({
         }
 
         this.computeVelocity(body, delta);
+
+        this._scratchVector.setFromObject(body.velocity).scale(delta);
+        if (body.next) {
+            // This is *intentionally* unaffected by max speed, drag, etc.
+            this._scratchVector.add(body.next.velocity.scale(delta));
+            this._scratchVector.add(body.next.position);
+            body.next.position.set(0, 0);
+            body.next.velocity.set(0, 0);
+            body.next.acceleration.set(0, 0);
+        }
+        body.position.add(this._scratchVector);
+        body.updateCenter();
+
+        // body.angle = degrees(body.rotation) -- doesn't this wipe out computeAngularVelocity? :-S
+        // This feels *okay* -- it means that if you bounce off of a wall, you'll face a new direction; if you get directly pos modified, you will *not* face the new direction. Kind of strange actually. It *might* be worth backing the phantom velocity/acceleration back out of this number...
+        body.angle = Math.atan2(this._scratchVector.y, this._scratchVector.x);
+        // Isn't this already calculated in computeVelocity? But at least this time I added the positional offset :->
+        body.speed = this._scratchVector.length();
     },
 
     /**
@@ -1218,13 +1245,15 @@ var World = new Class({
      */
     computeVelocity: function (body, delta)
     {
+        // Maybe this should just be an assert. Don't compute velocity on something static, you won't have a good time.
         var velocityX = body.velocity.x;
-        var accelerationX = body.acceleration.x;
+        var accelerationX = body.acceleration.x + (body.next ? body.next.acceleration.x : 0);
         var dragX = body.drag.x;
         var maxX = body.maxVelocity.x;
 
         var velocityY = body.velocity.y;
-        var accelerationY = body.acceleration.y;
+        var accelerationY = body.acceleration.y + (body.next ? body.next.acceleration.y : 0);
+
         var dragY = body.drag.y;
         var maxY = body.maxVelocity.y;
 
@@ -1409,27 +1438,27 @@ var World = new Class({
         if (overlapOnly)
         {
             //  No separation but we need to calculate overlapX, overlapY, etc.
-            resultX = SeparateX(body1, body2, overlapOnly, this.OVERLAP_BIAS);
-            resultY = SeparateY(body1, body2, overlapOnly, this.OVERLAP_BIAS);
+            resultX = Separate(Axis.X, body1, body2, overlapOnly, this.OVERLAP_BIAS);
+            resultY = Separate(Axis.Y, body1, body2, overlapOnly, this.OVERLAP_BIAS);
         }
         else if (this.forceX || Math.abs(this.gravity.y + body1.gravity.y) < Math.abs(this.gravity.x + body1.gravity.x))
         {
-            resultX = SeparateX(body1, body2, overlapOnly, this.OVERLAP_BIAS);
+            resultX = Separate(Axis.X, body1, body2, overlapOnly, this.OVERLAP_BIAS);
 
             //  Are they still intersecting? Let's do the other axis then
             if (this.intersects(body1, body2))
             {
-                resultY = SeparateY(body1, body2, overlapOnly, this.OVERLAP_BIAS);
+                resultY = Separate(Axis.Y, body1, body2, overlapOnly, this.OVERLAP_BIAS);
             }
         }
         else
         {
-            resultY = SeparateY(body1, body2, overlapOnly, this.OVERLAP_BIAS);
+            resultY = Separate(Axis.X, body1, body2, overlapOnly, this.OVERLAP_BIAS);
 
             //  Are they still intersecting? Let's do the other axis then
             if (this.intersects(body1, body2))
             {
-                resultX = SeparateX(body1, body2, overlapOnly, this.OVERLAP_BIAS);
+                resultX = Separate(Axis.Y, body1, body2, overlapOnly, this.OVERLAP_BIAS);
             }
         }
 
@@ -1471,8 +1500,8 @@ var World = new Class({
     separateCircle: function (body1, body2, overlapOnly, bias)
     {
         //  Set the bounding box overlap values into the bodies themselves (hence we don't use the return values here)
-        GetOverlapX(body1, body2, false, bias);
-        GetOverlapY(body1, body2, false, bias);
+        GetOverlap(Axis.X, body1, body2, false, bias);
+        GetOverlap(Axis.Y, body1, body2, false, bias);
 
         var overlap = 0;
 
